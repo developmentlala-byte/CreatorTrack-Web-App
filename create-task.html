@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CreatorTrack | Create Task</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div id="navbar-root"></div>
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>Create Task</h2>
+      <a href="tasks.html" class="btn btn-outline-light">Back to Tasks</a>
+    </div>
+
+    <!-- Task Form -->
+    <form id="taskForm" class="card">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="title">Title</label>
+            <input id="title" class="form-control" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="deadline">Deadline</label>
+            <input type="date" id="deadline" class="form-control" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="description">Description</label>
+            <textarea id="description" class="form-control" rows="4" placeholder="Task details" required></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="platform">Platform</label>
+            <select id="platform" class="form-select" required>
+              <option>YouTube</option>
+              <option>Instagram</option>
+              <option>TikTok</option>
+              <option>Blog</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="contentType">Content Type</label>
+            <select id="contentType" class="form-select" required>
+              <option>Video</option>
+              <option>Photo</option>
+              <option>Reel</option>
+              <option>Story</option>
+              <option>Post</option>
+              <option>Article</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="priority">Priority</label>
+            <select id="priority" class="form-select" required>
+              <option>low</option>
+              <option>medium</option>
+              <option>high</option>
+              <option>urgent</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="contentFor">Content For</label>
+            <select id="contentFor" class="form-select" required></select>
+            <div id="contentForAdmin" class="mt-2 d-none">
+              <div class="input-group input-group-sm">
+                <input id="contentForNew" class="form-control" placeholder="Tambah content for..." />
+                <button id="contentForAdd" type="button" class="btn btn-outline-light"><i class="bi bi-plus"></i> Add</button>
+                <button id="contentForDelete" type="button" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </div>
+              <small class="text-muted">Admin dapat menambah dan menghapus daftar.</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="assignedTo">Assign to (Admin only)</label>
+            <select id="assignedTo" class="form-select" disabled>
+              <option value="">Select user...</option>
+            </select>
+            <small class="text-muted">As a user, tasks are self-assigned.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="tags">Tags (comma-separated)</label>
+            <input id="tags" class="form-control" placeholder="e.g., campaign, Q4, shorts" />
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save Task</button>
+      </div>
+  </form>
+  </div>
+
+  <footer class="app-footer">&copy; LangitLangit.id</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { protectPage, renderNavbar } from './js/auth.js';
+    import { showToast } from './js/utils.js';
+    import { db } from './js/firebase-config.js';
+    import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+
+    const { user, userDoc } = await protectPage();
+    renderNavbar(userDoc);
+
+    // Content For: load options and admin controls
+    const contentForSelect = document.getElementById('contentFor');
+    const contentForAdminDiv = document.getElementById('contentForAdmin');
+    const contentForNewInput = document.getElementById('contentForNew');
+    const contentForAddBtn = document.getElementById('contentForAdd');
+    const contentForDeleteBtn = document.getElementById('contentForDelete');
+
+    async function refreshContentFor() {
+      const colRef = collection(db, 'contentFor');
+      let qs = await getDocs(colRef);
+      if (qs.empty) {
+        const defaults = ['LangitLangit.id', 'mahalulu Spa'];
+        await Promise.all(defaults.map(name => addDoc(colRef, { name })));
+        qs = await getDocs(colRef);
+      }
+      contentForSelect.innerHTML = '';
+      qs.forEach((d) => {
+        const name = d.data().name;
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        opt.dataset.id = d.id;
+        contentForSelect.appendChild(opt);
+      });
+    }
+
+    await refreshContentFor();
+    if (userDoc.role === 'admin') {
+      contentForAdminDiv.classList.remove('d-none');
+    }
+
+    contentForAddBtn?.addEventListener('click', async () => {
+      const name = (contentForNewInput.value || '').trim();
+      if (!name) { showToast('Nama content for tidak boleh kosong', 'danger'); return; }
+      for (const opt of Array.from(contentForSelect.options)) {
+        if (opt.value.toLowerCase() === name.toLowerCase()) { showToast('Sudah ada dalam daftar', 'warning'); return; }
+      }
+      await addDoc(collection(db, 'contentFor'), { name });
+      contentForNewInput.value = '';
+      await refreshContentFor();
+      showToast('Content For ditambahkan', 'success');
+    });
+
+    contentForDeleteBtn?.addEventListener('click', async () => {
+      const opt = contentForSelect.options[contentForSelect.selectedIndex];
+      if (!opt) return;
+      if (!confirm('Hapus item terpilih?')) return;
+      const id = opt.dataset.id;
+      if (!id) { showToast('Tidak dapat menghapus item ini', 'danger'); return; }
+      await deleteDoc(doc(db, 'contentFor', id));
+      await refreshContentFor();
+      showToast('Content For dihapus', 'success');
+    });
+
+    // Populate assign dropdown for admin
+    const assignSelect = document.getElementById('assignedTo');
+    if (userDoc.role === 'admin') {
+      assignSelect.disabled = false;
+      const usersCol = collection(db, 'users');
+      const qs = await getDocs(usersCol);
+      qs.forEach((d) => {
+        const u = d.data();
+        const opt = document.createElement('option');
+        opt.value = u.uid;
+        opt.textContent = `${u.displayName || u.email} (${u.role})`;
+        opt.dataset.name = u.displayName || u.email;
+        assignSelect.appendChild(opt);
+      });
+    }
+
+    // Handle form submit
+    document.getElementById('taskForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const platform = document.getElementById('platform').value;
+      const contentType = document.getElementById('contentType').value;
+      const priority = document.getElementById('priority').value;
+      const contentFor = document.getElementById('contentFor').value;
+      const deadlineStr = document.getElementById('deadline').value;
+      const deadline = deadlineStr ? new Date(deadlineStr).getTime() : null;
+      const tagsInput = document.getElementById('tags').value.trim();
+      const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+      // Admin can assign; users self-assign
+      let assignedTo = '';
+      let assignedToName = '';
+      if (userDoc.role === 'admin' && assignSelect.value) {
+        assignedTo = assignSelect.value;
+        assignedToName = assignSelect.options[assignSelect.selectedIndex].dataset.name || '';
+      } else {
+        assignedTo = user.uid;
+        assignedToName = userDoc.displayName || user.email;
+      }
+
+      const tasksCol = collection(db, 'tasks');
+      const newTask = {
+        title,
+        description,
+        platform,
+        contentType,
+        status: 'todo',
+        priority,
+        contentFor,
+        deadline,
+        createdBy: user.uid,
+        createdByRole: userDoc.role,
+        assignedTo,
+        assignedToName,
+        deliverableLinks: [],
+        tags,
+        requiresApproval: userDoc.role === 'admin',
+        approvalStatus: userDoc.role === 'admin' ? 'pending' : null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      try {
+        const ref = await addDoc(tasksCol, newTask);
+        showToast('Task created successfully', 'success');
+        // Log activity
+        const activitiesCol = collection(db, 'activities');
+        await addDoc(activitiesCol, {
+          taskId: ref.id,
+          userId: user.uid,
+          userName: userDoc.displayName || user.email,
+          activityType: 'created',
+          description: 'Task created',
+          oldValue: null,
+          newValue: null,
+          timestamp: Date.now()
+        });
+        window.location.href = `task-detail.html?id=${ref.id}`;
+      } catch (err) {
+        showToast(err.message || 'Failed to create task', 'danger');
+      }
+    });
+  </script>
+</body>
+</html>

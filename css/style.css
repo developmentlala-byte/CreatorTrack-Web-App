@@ -1,0 +1,76 @@
+/* Dark theme variables */
+:root {
+  --bg-dark: #1a1a1a;
+  --bg-card: #2d2d2d;
+  --text-light: #e0e0e0;
+  --accent: #4a9eff;
+}
+
+/* Base dark theme */
+body.dark-theme {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+}
+.card {
+  background-color: var(--bg-card);
+  color: var(--text-light);
+  border: 1px solid #3a3a3a;
+}
+.btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+.btn-outline-light {
+  border-color: #bfbfbf;
+  color: #e0e0e0;
+}
+.table-dark {
+  --bs-table-bg: var(--bg-card);
+  --bs-table-striped-bg: #343434;
+}
+.navbar-dark {
+  background-color: #101010;
+}
+
+/* Utilities */
+.badge {
+  font-weight: 600;
+}
+.link-light {
+  color: #cfe3ff;
+}
+.link-light:hover { text-decoration: underline; }
+
+/* Chips (tags) */
+.chip {
+  display: inline-block;
+  padding: 4px 10px;
+  background-color: #3a3a3a;
+  border-radius: 999px;
+  margin-right: 6px;
+}
+
+/* Toast container position fix for dark */
+.toast { background-color: #333; color: #fff; }
+.toast-header { background-color: #222; color: #fff; }
+
+/* Responsive tweaks */
+@media (max-width: 576px) {
+  .card { border-radius: 12px; }
+}
+
+/* Footer */
+.app-footer {
+  border-top: 1px solid rgba(255,255,255,0.15);
+  color: #adb5bd;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  margin-top: auto;
+}
+
+/* Sticky footer layout */
+html, body { height: 100%; }
+body { min-height: 100vh; display: flex; flex-direction: column; }
+/* Ensure main content grows to push footer down */
+main { flex: 1 0 auto; }

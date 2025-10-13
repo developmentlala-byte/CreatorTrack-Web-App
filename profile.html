@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CreatorTrack | Profile</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div id="navbar-root"></div>
+  <div class="container py-4">
+    <h2 class="mb-3">My Profile</h2>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Account</div>
+          <div class="card-body">
+            <form id="profileForm" class="vstack gap-2">
+              <div>
+                <label class="form-label" for="pDisplay">Display Name</label>
+                <input id="pDisplay" class="form-control" required />
+              </div>
+              <div>
+                <label class="form-label" for="pEmail">Email</label>
+                <input id="pEmail" class="form-control" disabled />
+              </div>
+              <div>
+                <label class="form-label" for="pSpec">Specialization</label>
+                <input id="pSpec" class="form-control" />
+              </div>
+              <button class="btn btn-primary" type="submit">Save Changes</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Security</div>
+          <div class="card-body">
+            <form id="passwordForm" class="vstack gap-2">
+              <div>
+                <label class="form-label" for="currentPassword">Current Password</label>
+                <input id="currentPassword" type="password" class="form-control" placeholder="••••••••" />
+              </div>
+              <div>
+                <label class="form-label" for="newPassword">New Password</label>
+                <input id="newPassword" type="password" class="form-control" placeholder="••••••••" minlength="6" />
+              </div>
+              <button class="btn btn-outline-light" type="submit">Update Password</button>
+            </form>
+            <small class="text-muted">You may need to reauthenticate.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">&copy; LangitLangit.id</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { protectPage, renderNavbar } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, updateDoc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+    import { showToast } from './js/utils.js';
+    import { getAuth, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+
+    const { user, userDoc } = await protectPage();
+    renderNavbar(userDoc);
+
+    // Populate profile
+    document.getElementById('pDisplay').value = userDoc.displayName || '';
+    document.getElementById('pEmail').value = user.email;
+    document.getElementById('pSpec').value = userDoc.specialization || '';
+
+    // Save profile changes
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const displayName = document.getElementById('pDisplay').value.trim();
+      const specialization = document.getElementById('pSpec').value.trim();
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { displayName, specialization });
+        showToast('Profile updated', 'success');
+      } catch (err) {
+        showToast(err.message || 'Failed to update profile', 'danger');
+      }
+    });
+
+    // Update password
+    document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const cur = document.getElementById('currentPassword').value;
+      const nextPw = document.getElementById('newPassword').value;
+      if (!cur || !nextPw) return showToast('Enter current and new password', 'warning');
+      try {
+        const cred = EmailAuthProvider.credential(user.email, cur);
+        await reauthenticateWithCredential(user, cred);
+        await updatePassword(user, nextPw);
+        showToast('Password updated', 'success');
+      } catch (err) {
+        showToast(err.message || 'Failed to update password', 'danger');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CreatorTrack | Login</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Custom Styles -->
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div class="container min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="card shadow w-100" style="max-width: 420px;">
+      <div class="card-body">
+        <div class="text-center mb-3">
+          <h3 class="fw-bold">CreatorTrack</h3>
+          <p class="text-muted">Sign in to manage your creator tasks</p>
+        </div>
+        <!-- Login Form -->
+        <form id="loginForm">
+          <!-- Email -->
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" placeholder="you@example.com" required>
+          </div>
+          <!-- Password -->
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Login</button>
+        </form>
+        <div class="d-flex justify-content-between mt-3">
+          <a href="register.html" class="link-light">Create account</a>
+        </div>
+        <div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>
+      </div>
+  </div>
+  </div>
+
+  <!-- Removed duplicate non-sticky footer; using global app-footer below -->
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Moment (optional) -->
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+
+  <!-- Auth + Utils -->
+  <script type="module">
+    // Import local modules that internally import Firebase v9 from CDN
+    import { initAuthPersistence, loginWithEmailPassword } from './js/auth.js';
+    import { showToast } from './js/utils.js';
+
+    // Initialize auth persistence (keeps user logged in across reloads)
+    initAuthPersistence();
+
+    // Force dark theme
+    localStorage.setItem('theme', 'dark');
+    document.body.classList.add('dark-theme');
+
+    // Handle login
+    const loginForm = document.getElementById('loginForm');
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        const { role } = await loginWithEmailPassword(email, password);
+        showToast('Logged in successfully', 'success');
+        // Redirect based on role
+        if (role === 'admin') {
+          window.location.href = 'dashboard-admin.html';
+        } else {
+          window.location.href = 'dashboard-user.html';
+        }
+      } catch (err) {
+        showToast(err.message || 'Login failed', 'danger');
+      }
+    });
+  </script>
+  <footer class="app-footer">&copy; LangitLangit.id</footer>
+</body>
+</html>

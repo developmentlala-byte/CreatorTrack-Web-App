@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CreatorTrack | Task Detail</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div id="navbar-root"></div>
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 id="taskTitle">Task</h2>
+      <div>
+        <button id="approveBtn" class="btn btn-success btn-sm d-none"><i class="bi bi-check2-circle"></i> Approve</button>
+        <button id="rejectBtn" class="btn btn-danger btn-sm d-none"><i class="bi bi-x-circle"></i> Reject</button>
+        <button id="editBtn" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i> Edit</button>
+        <button id="deleteBtn" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+
+    <!-- Task Info -->
+    <div class="row g-3">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-6"><strong>Platform:</strong> <span id="taskPlatform"></span></div>
+              <div class="col-md-6"><strong>Content Type:</strong> <span id="taskType"></span></div>
+              <div class="col-md-6"><strong>Status:</strong> 
+                <select id="statusSelect" class="form-select form-select-sm w-auto d-inline-block">
+                  <option value="todo">To Do</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="review">In Review</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="col-md-6"><strong>Priority:</strong> <span id="taskPriority"></span></div>
+              <div class="col-md-6">
+                <strong>Assigned To:</strong>
+                <span id="taskAssigned"></span>
+                <!-- Admins can reassign using this dropdown -->
+                <select id="assignSelect" class="form-select form-select-sm w-auto d-inline-block d-none"></select>
+                <!-- User assignment actions (non-admin) -->
+                <div id="assignActions" class="d-inline-block ms-2">
+                  <button id="assignMeBtn" class="btn btn-sm btn-outline-primary d-none">Assign ke saya</button>
+                  <button id="unassignBtn" class="btn btn-sm btn-outline-warning d-none">Lepaskan</button>
+                </div>
+              </div>
+              <div class="col-md-6"><strong>Deadline:</strong> <span id="taskDeadline"></span></div>
+              <div class="col-12"><strong>Tags:</strong> <span id="taskTags"></span></div>
+              <div class="col-12"><strong>Description:</strong>
+                <p id="taskDescription" class="mb-0"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deliverable Links -->
+        <div class="card mt-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Deliverable Links</span>
+            <button id="addLinkBtn" class="btn btn-sm btn-outline-light"><i class="bi bi-plus"></i> Add Link</button>
+          </div>
+          <div class="card-body" id="linksContainer"></div>
+        </div>
+
+        <!-- Comments -->
+        <div class="card mt-3">
+          <div class="card-header">Comments</div>
+          <div class="card-body">
+            <div id="commentsList" class="vstack gap-2"></div>
+            <div class="input-group mt-2">
+              <input id="commentInput" class="form-control" placeholder="Write a comment..." />
+              <button id="commentBtn" class="btn btn-primary"><i class="bi bi-send"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <!-- Activity -->
+        <div class="card">
+          <div class="card-header">Activity</div>
+          <div class="card-body">
+            <ul id="activityList" class="list-group list-group-flush"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">&copy; LangitLangit.id</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { protectPage, renderNavbar } from './js/auth.js';
+    import { showToast } from './js/utils.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, updateDoc, deleteDoc, arrayUnion, onSnapshot, collection, addDoc, serverTimestamp, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+
+    // Protect page and render navbar
+    const { user, userDoc } = await protectPage();
+    renderNavbar(userDoc);
+
+    // Get Task ID from URL
+    const params = new URLSearchParams(window.location.search);
+    const taskId = params.get('id');
+    if (!taskId) {
+      showToast('Invalid task ID', 'danger');
+    }
+
+    const taskRef = doc(db, 'tasks', taskId);
+    const commentsRef = collection(db, 'comments');
+    const activitiesRef = collection(db, 'activities');
+
+    // Assignment editing (admin only)
+    const assignSelect = document.getElementById('assignSelect');
+    const taskAssignedSpan = document.getElementById('taskAssigned');
+    const assignMeBtn = document.getElementById('assignMeBtn');
+    const unassignBtn = document.getElementById('unassignBtn');
+    const usersMap = new Map();
+    if (userDoc.role === 'admin') {
+      // Show dropdown, hide static text
+      assignSelect.classList.remove('d-none');
+      taskAssignedSpan.classList.add('d-none');
+      // Populate users
+      const usersCol = collection(db, 'users');
+      const qs = await getDocs(usersCol);
+      assignSelect.innerHTML = '<option value="">Unassigned</option>';
+      qs.forEach((d) => {
+        const u = d.data();
+        usersMap.set(u.uid, u.displayName || u.email);
+        const opt = document.createElement('option');
+        opt.value = u.uid;
+        opt.textContent = u.displayName || u.email;
+        assignSelect.appendChild(opt);
+      });
+      // Handle reassignment
+      assignSelect.addEventListener('change', async () => {
+        const uid = assignSelect.value;
+        const name = uid ? (usersMap.get(uid) || '') : '';
+        await updateDoc(taskRef, { assignedTo: uid || '', assignedToName: name, updatedAt: Date.now() });
+        await addActivity('assigned', 'Updated task assignment', null, name || 'Unassigned');
+        showToast('Assignment updated', 'success');
+      });
+    } else {
+      // Non-admin users can self-assign when task is unassigned, or unassign themselves
+      assignSelect.classList.add('d-none');
+      taskAssignedSpan.classList.remove('d-none');
+      // Assign to me
+      assignMeBtn.addEventListener('click', async () => {
+        const name = userDoc.displayName || user.email;
+        await updateDoc(taskRef, { assignedTo: user.uid, assignedToName: name, updatedAt: Date.now() });
+        await addActivity('assigned', 'User self-assigned', null, name);
+        showToast('Berhasil assign ke diri sendiri', 'success');
+      });
+      // Unassign self
+      unassignBtn.addEventListener('click', async () => {
+        const prevName = userDoc.displayName || user.email;
+        await updateDoc(taskRef, { assignedTo: '', assignedToName: '', updatedAt: Date.now() });
+        await addActivity('unassigned', 'User released assignment', prevName, 'Unassigned');
+        showToast('Assignment dilepaskan', 'success');
+      });
+    }
+
+    // Render task detail and bind real-time listeners
+    onSnapshot(taskRef, (snap) => {
+      if (!snap.exists()) return;
+      const t = snap.data();
+      // Title and basics
+      document.getElementById('taskTitle').textContent = t.title;
+      document.getElementById('taskPlatform').textContent = t.platform;
+      document.getElementById('taskType').textContent = t.contentType;
+      document.getElementById('taskPriority').textContent = t.priority;
+      document.getElementById('taskAssigned').textContent = t.assignedToName || '-';
+      document.getElementById('taskDeadline').textContent = t.deadline ? new Date(t.deadline).toLocaleDateString() : '-';
+      document.getElementById('taskDescription').textContent = t.description || '';
+      document.getElementById('taskTags').textContent = (t.tags || []).join(', ');
+      document.getElementById('statusSelect').value = t.status;
+      // Reflect assignment in dropdown when admin
+      if (typeof assignSelect !== 'undefined' && assignSelect && userDoc.role === 'admin') {
+        assignSelect.value = t.assignedTo || '';
+      }
+      // Toggle user assignment actions when non-admin
+      if (userDoc.role !== 'admin') {
+        const isUnassigned = !t.assignedTo;
+        const isMine = t.assignedTo === user.uid;
+        // Only allow self-assign when unassigned
+        assignMeBtn.classList.toggle('d-none', !isUnassigned);
+        // Allow unassign only when the task is assigned to the current user
+        unassignBtn.classList.toggle('d-none', !isMine);
+      }
+
+      // Approval buttons (visible to admin when pending)
+      const approveBtn = document.getElementById('approveBtn');
+      const rejectBtn = document.getElementById('rejectBtn');
+      const showApproval = t.requiresApproval && t.approvalStatus === 'pending' && userDoc.role === 'admin';
+      approveBtn.classList.toggle('d-none', !showApproval);
+      rejectBtn.classList.toggle('d-none', !showApproval);
+
+      // Links list
+      renderLinks(t.deliverableLinks || []);
+
+      // Edit/Delete permissions
+      const canEdit = userDoc.role === 'admin' || (t.createdBy === user.uid);
+      document.getElementById('editBtn').disabled = !canEdit;
+      document.getElementById('deleteBtn').disabled = !canEdit && userDoc.role !== 'admin';
+    });
+
+    function renderLinks(links) {
+      const container = document.getElementById('linksContainer');
+      container.innerHTML = '';
+      links.forEach((link, idx) => {
+        const group = document.createElement('div');
+        group.className = 'input-group mb-2';
+        group.innerHTML = `<input class="form-control" value="${link}" data-idx="${idx}" placeholder="https://..." /><button class="btn btn-outline-light" data-action="save">Save</button>`;
+        container.appendChild(group);
+        group.querySelector('button').addEventListener('click', async () => {
+          const newVal = group.querySelector('input').value.trim();
+          const snap = await getDoc(taskRef);
+          const t = snap.data();
+          const arr = [...(t.deliverableLinks || [])];
+          arr[idx] = newVal;
+          await updateDoc(taskRef, { deliverableLinks: arr, updatedAt: Date.now() });
+          await addActivity('deliverable_update', `Updated link #${idx+1}`, link, newVal);
+          showToast('Link updated', 'success');
+        });
+      });
+    }
+
+    // Add new link input
+    document.getElementById('addLinkBtn').addEventListener('click', async () => {
+      const snap = await getDoc(taskRef);
+      const t = snap.data();
+      const arr = [...(t.deliverableLinks || [])];
+      arr.push('');
+      await updateDoc(taskRef, { deliverableLinks: arr, updatedAt: Date.now() });
+      await addActivity('deliverable_add', 'Added new deliverable link', null, '');
+    });
+
+    // Status change handler with approval workflow
+    document.getElementById('statusSelect').addEventListener('change', async (e) => {
+      const newStatus = e.target.value;
+      const snap = await getDoc(taskRef);
+      const t = snap.data();
+      const oldStatus = t.status;
+      let updates = { status: newStatus, updatedAt: Date.now() };
+      // If admin-created task is marked completed, require approval
+      if (newStatus === 'completed' && t.createdByRole === 'admin') {
+        updates.approvalStatus = 'pending';
+      }
+      await updateDoc(taskRef, updates);
+      await addActivity('status_change', 'Status changed', oldStatus, newStatus);
+      showToast('Status updated', 'success');
+    });
+
+    // Approve/Reject buttons (admin only)
+    document.getElementById('approveBtn').addEventListener('click', async () => {
+      await updateDoc(taskRef, { approvalStatus: 'approved', updatedAt: Date.now() });
+      await addActivity('approved', 'Task approved', 'pending', 'approved');
+      showToast('Task approved', 'success');
+    });
+    document.getElementById('rejectBtn').addEventListener('click', async () => {
+      await updateDoc(taskRef, { approvalStatus: 'rejected', status: 'review', updatedAt: Date.now() });
+      await addActivity('rejected', 'Task rejected', 'pending', 'rejected');
+      showToast('Task rejected', 'danger');
+    });
+
+    // Delete task (permission checked above)
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      if (!confirm('Delete this task?')) return;
+      await deleteDoc(taskRef);
+      await addActivity('deleted', 'Task deleted', null, null);
+      showToast('Task deleted', 'success');
+      window.location.href = 'tasks.html';
+    });
+
+    // Comments real-time list
+    const commentsQuery = query(commentsRef, where('taskId', '==', taskId), orderBy('createdAt', 'asc'));
+    onSnapshot(commentsQuery, (qs) => {
+      const list = document.getElementById('commentsList');
+      list.innerHTML = '';
+      qs.forEach((d) => {
+        const c = d.data();
+        const item = document.createElement('div');
+        item.className = 'p-2 border rounded';
+        item.innerHTML = `<strong>${c.userName}</strong> <span class="text-muted">${new Date(c.createdAt).toLocaleString()}</span><br>${c.comment}`;
+        list.appendChild(item);
+      });
+    });
+
+    // Add comment
+    document.getElementById('commentBtn').addEventListener('click', async () => {
+      const input = document.getElementById('commentInput');
+      const text = input.value.trim();
+      if (!text) return;
+      await addDoc(commentsRef, {
+        taskId,
+        userId: user.uid,
+        userName: userDoc.displayName || user.email,
+        userRole: userDoc.role,
+        comment: text,
+        createdAt: Date.now()
+      });
+      await addActivity('comment', 'Added a comment', null, null);
+      input.value = '';
+    });
+
+    // Activity real-time list
+    const activityQuery = query(activitiesRef, where('taskId', '==', taskId), orderBy('timestamp', 'desc'));
+    onSnapshot(activityQuery, (qs) => {
+      const ul = document.getElementById('activityList');
+      ul.innerHTML = '';
+      qs.forEach((d) => {
+        const a = d.data();
+        const li = document.createElement('li');
+        li.className = 'list-group-item bg-transparent text-light';
+        li.innerHTML = `<div class="d-flex justify-content-between"><span>${a.userName} • ${a.activityType}</span><small class="text-muted">${new Date(a.timestamp).toLocaleString()}</small></div><div class="small text-muted">${a.description || ''}</div>`;
+        ul.appendChild(li);
+      });
+    });
+
+    // Helper: add activity log
+    async function addActivity(type, description, oldValue, newValue) {
+      await addDoc(activitiesRef, {
+        taskId,
+        userId: user.uid,
+        userName: userDoc.displayName || user.email,
+        activityType: type,
+        description,
+        oldValue,
+        newValue,
+        timestamp: Date.now()
+      });
+    }
+  </script>
+</body>
+</html>
